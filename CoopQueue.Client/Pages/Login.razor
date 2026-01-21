@@ -1,0 +1,205 @@
+﻿@page "/login"
+@using CoopQueue.Client.Services
+@using CoopQueue.Shared.DTOs
+@inject IAuthService AuthService
+@inject NavigationManager NavManager
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small"
+              Class="d-flex align-center justify-center mud-width-full"
+              Style="min-height: 100vh;">
+    <MudPaper Elevation="6"
+              Class="pa-8 my-8"
+              Width="100%">
+
+        <div class="d-flex flex-column align-center mb-6">
+            <MudIcon Icon="@Icons.Material.Filled.VideogameAsset"
+                     Color="Color.Primary"
+                     Style="font-size: 4rem;"
+                     Class="mb-2" />
+
+            <MudText Typo="Typo.h4"
+                     Class="text-gradient mb-1"
+                     Style="font-weight: 900;">
+                CoopQueue
+            </MudText>
+
+            <MudText Typo="Typo.subtitle1" 
+                     Color="Color.Secondary" 
+                     Class="mb-2">
+                The Collaborative Game Backlog
+            </MudText>
+
+            <MudText Typo="Typo.body2" 
+                     Align="Align.Center"
+                     Style="max-width: 80%;">
+                Welcome! Please sign in to access the database and start voting.
+            </MudText>
+        </div>
+
+        <MudDivider Class="mb-6" />
+
+        <MudText Typo="Typo.h5" 
+                 Align="Align.Center" 
+                 GutterBottom="true" 
+                 Class="mb-4">
+            <b>@(isRegisterMode ? "Create New Account" : "Login")</b>
+        </MudText>
+
+        @if (isRegisterMode)
+        {
+            /* --- REGISTER FORM --- */
+            <EditForm Model="@registerModel" OnValidSubmit="HandleRegister">
+                <DataAnnotationsValidator />
+
+                <MudTextField @bind-Value="registerModel.Username"
+                              Label="Username"
+                              Variant="Variant.Outlined" 
+                              Class="mb-3"
+                              For="@(() => registerModel.Username)" />
+
+                <MudTextField @bind-Value="registerModel.Password"
+                              Label="Password" 
+                              Variant="Variant.Outlined" 
+                              InputType="@passwordInput"
+                              Adornment="Adornment.End" 
+                              AdornmentIcon="@passwordIcon" 
+                              OnAdornmentClick="TogglePasswordVisibility" 
+                              Class="mb-3"
+                              For="@(() => registerModel.Password)" />
+
+                <MudTextField @bind-Value="registerModel.ConfirmPassword" 
+                              Label="Confirm Password" 
+                              Variant="Variant.Outlined" 
+                              InputType="InputType.Password" 
+                              Class="mb-4"
+                              For="@(() => registerModel.ConfirmPassword)" />
+
+                <MudTextField @bind-Value="registerModel.InviteCode"
+                              Label="Invite Code" 
+                              Variant="Variant.Outlined" 
+                              Class="mb-3" 
+                              HelperText="Ask the admin for the code"
+                              For="@(() => registerModel.InviteCode)" />
+
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Class="btn-gradient mt-2 py-2"
+                           FullWidth="true"
+                           Size="Size.Large">
+                    Register
+                </MudButton>
+            </EditForm>
+        }
+        else
+        {
+            /* --- LOGIN FORM --- */
+            <EditForm Model="@loginModel" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+
+                <MudTextField @bind-Value="loginModel.Username" 
+                              Label="Username"
+                              Variant="Variant.Outlined"
+                              Class="mb-3"
+                              For="@(() => loginModel.Username)" />
+
+                <MudTextField @bind-Value="loginModel.Password" 
+                              Label="Password"
+                              Variant="Variant.Outlined" 
+                              InputType="@passwordInput"
+                              Adornment="Adornment.End" 
+                              AdornmentIcon="@passwordIcon" 
+                              OnAdornmentClick="TogglePasswordVisibility" 
+                              Class="mb-4"
+                              For="@(() => loginModel.Password)" />
+
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Class="btn-gradient mt-2 py-2"
+                           FullWidth="true"
+                           Size="Size.Large">
+                    Sign In
+                </MudButton>
+            </EditForm>
+        }
+
+        <MudText Align="Align.Center" Class="mt-6">
+            @if (isRegisterMode)
+            {
+                <span>Already have an account? <MudLink OnClick="ToggleMode" Color="Color.Secondary"><b>Log in here</b></MudLink></span>
+            }
+            else
+            {
+                <span>Don't have an account yet? <MudLink OnClick="ToggleMode" Color="Color.Secondary"><b>Register here</b></MudLink></span>
+            }
+        </MudText>
+
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private UserLoginDto loginModel = new UserLoginDto();
+    private UserRegisterDto registerModel = new UserRegisterDto();
+
+    private bool isRegisterMode = false;
+
+    // Password Visibility Logic (UX Feature)
+    bool isPasswordVisible;
+    InputType passwordInput = InputType.Password;
+    string passwordIcon = Icons.Material.Filled.VisibilityOff;
+
+    void TogglePasswordVisibility()
+    {
+        if (isPasswordVisible)
+        {
+            isPasswordVisible = false;
+            passwordIcon = Icons.Material.Filled.VisibilityOff;
+            passwordInput = InputType.Password;
+        }
+        else
+        {
+            isPasswordVisible = true;
+            passwordIcon = Icons.Material.Filled.Visibility;
+            passwordInput = InputType.Text;
+        }
+    }
+
+    /// <summary>
+    /// Switches between Login and Register forms and resets models to clear previous validation errors.
+    /// </summary>
+    private void ToggleMode()
+    {
+        isRegisterMode = !isRegisterMode;
+        loginModel = new UserLoginDto();
+        registerModel = new UserRegisterDto();
+    }
+
+    private async Task HandleLogin()
+    {
+        var error = await AuthService.Login(loginModel);
+        if (error == null)
+        {
+            Snackbar.Add("Welcome back!", Severity.Success);
+            NavManager.NavigateTo("/"); // Redirect to dashboard
+        }
+        else
+        {
+            Snackbar.Add(error, Severity.Error);
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        try
+        {
+            await AuthService.Register(registerModel);
+            Snackbar.Add("Registration successful! Please log in.", Severity.Success);
+
+            ToggleMode(); // Automatically switch to login view for better UX
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

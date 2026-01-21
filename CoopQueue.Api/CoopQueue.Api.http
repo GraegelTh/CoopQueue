@@ -1,0 +1,6 @@
+@CoopQueue.Api_HostAddress = http://localhost:5118
+
+GET {{CoopQueue.Api_HostAddress}}
+Accept: application/json
+
+###

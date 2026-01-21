@@ -1,0 +1,267 @@
+﻿@page "/search"
+@using CoopQueue.Shared.DTOs
+@using CoopQueue.Shared.Enums
+@inject ISnackbar Snackbar
+@inject HttpClient Http
+
+<AuthorizeView>
+    <Authorized>
+        <div class="mb-8 mt-4">
+            <div class="d-flex align-center mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.Search"
+                         Color="Color.Primary"
+                         Class="mr-3"
+                         Style="font-size: 3rem;" />
+
+                <MudText Typo="Typo.h3"
+                         Class="text-gradient"
+                         Style="font-weight: 900;">
+                    Discover Games
+                </MudText>
+            </div>
+
+            <MudText Typo="Typo.subtitle1"
+                     Color="Color.Secondary"
+                     Class="ml-1">
+                Search for your next adventure across thousands of titles.
+            </MudText>
+        </div>
+
+        <MudPaper Class="pa-4 mr-4 mb-4" Elevation="3">
+            <MudGrid>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="searchTerm"
+                                  Label="Game Title"
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  OnAdornmentClick="PerformSearch"
+                                  OnKeyDown="@CheckEnter"
+                                  Immediate="true"
+                                  Placeholder="E.g. Elden Ring..." />
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Filled"
+                               Class="btn-gradient py-2 rounded-lg"
+                               FullWidth="true"
+                               Disabled="@isSearching"
+                               OnClick="PerformSearch">
+                        @if (isSearching)
+                        {
+                            <MudProgressCircular Size="Size.Small"
+                                                 Indeterminate="true"
+                                                 Color="Color.Surface"
+                                                 Class="mr-2" />
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.button">Search</MudText>
+                        }
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudGrid>
+            @* STATE 1: LOADING ANIMATION *@
+            @if (isSearching)
+            {
+                <MudItem xs="12" Class="d-flex justify-center py-8">
+                    <MudProgressCircular Color="Color.Secondary"
+                                         Indeterminate="true"
+                                         Size="Size.Large" />
+                </MudItem>
+            }
+            @* STATE 2: DISPLAY RESULTS *@
+            else if (searchResults != null)
+            {
+                @if (searchResults.Count >= 20)
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Info"
+                                  Dense="true"
+                                  Class="mb-2">
+                            Note: Only the top 20 results are displayed to optimize performance.
+                        </MudAlert>
+                    </MudItem>
+                }
+                else if (searchResults.Count == 0)
+                {
+                    <MudItem xs="12">
+                        <MudText>No games found. Try a different title.</MudText>
+                    </MudItem>
+                }
+
+                @foreach (var game in searchResults)
+                {
+                    <MudItem xs="12" sm="6" md="4" lg="3">
+                        <MudCard Elevation="2" Class="mb-4 h-100 d-flex flex-column">
+
+                            @if (!string.IsNullOrEmpty(game.CoverUrl))
+                            {
+                                <MudCardMedia Image="@game.CoverUrl"
+                                              Height="200"
+                                              Style="background-size: contain; background-position: center top;"
+                                              Class="mt-5 rounded-lg" />
+                            }
+                            else
+                            {
+                                <MudCardMedia Image="images/no_image.png"
+                                              Height="200"
+                                              Style="background-size: contain; background-position: center top;"
+                                              Class="mt-5 rounded-lg" />
+                            }
+
+                            <MudCardContent Class="flex-grow-1">
+
+                                <MudText Typo="Typo.h6"
+                                         Align="Align.Center"
+                                         Class="mb-1"
+                                         Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">
+                                    @game.Title
+                                </MudText>
+
+                                @if (game.ReleaseDate.HasValue)
+                                {
+                                    <MudText Typo="Typo.caption" Align="Align.Center" Class="mb-3 d-block" Style="opacity: 0.7;">
+                                        Release: @game.ReleaseDate.Value.ToString("d")
+                                    </MudText>
+                                }
+
+                                <MudText Typo="Typo.body2">
+                                    @(game.Description?.Length > 100 ? game.Description.Substring(0, 97) + "..." : game.Description)
+                                </MudText>
+                            </MudCardContent>
+
+                            <MudCardActions>
+                                <MudButton Variant="Variant.Filled"
+                                           Class="btn-gradient py-2 rounded-lg"
+                                           StartIcon="@Icons.Material.Filled.Add"
+                                           FullWidth="true"
+                                           Disabled="@isProcessing"
+                                           OnClick="@(() => AddToQueue(game))">
+                                    Add to Queue
+                                </MudButton>
+                            </MudCardActions>
+
+                        </MudCard>
+                    </MudItem>
+                }
+            }
+        </MudGrid>
+    </Authorized>
+
+    <NotAuthorized>
+        <MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+            <MudAlert Severity="Severity.Warning"
+                      Variant="Variant.Filled"
+                      Class="pa-8"
+                      Elevation="4">
+                <MudText Typo="Typo.h5" GutterBottom="true">Authentication Required</MudText>
+                <MudText Class="mt-2">
+                    You must be logged in to search the external database and add new games to the list.
+                </MudText>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Inherit"
+                           Href="/login"
+                           Class="mt-4"
+                           FullWidth="true">
+                    Go to Login
+                </MudButton>
+            </MudAlert>
+        </MudContainer>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private string searchTerm = string.Empty;
+    private List<GameSearchDto>? searchResults;
+
+    // UI State: Used to disable buttons while adding a game to the DB
+    private bool isProcessing = false;
+
+    // UI State: Controls the loading spinner during the IGDB API search
+    private bool isSearching = false;
+
+    // Accessibility: Allow submitting via Enter key
+    private async Task CheckEnter(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" || e.Key == "NumpadEnter")
+        {
+            await PerformSearch();
+        }
+    }
+
+    private async Task PerformSearch()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm)) return;
+
+        // UX: Reset results and show spinner immediately
+        isSearching = true;
+        searchResults = null;
+
+        try
+        {
+            // The backend acts as a proxy to IGDB, hiding the API keys from the client
+            searchResults = await Http.GetFromJsonAsync<List<GameSearchDto>>($"api/Game/search/{searchTerm}");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Search failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            // Ensure the spinner stops even if the API call fails
+            isSearching = false;
+        }
+    }
+
+    /// <summary>
+    /// Maps the external search result (GameSearchDto) to our internal format (CreateGameDto)
+    /// and sends it to the API to be saved in the database.
+    /// </summary>
+    private async Task AddToQueue(GameSearchDto gameResult)
+    {
+        isProcessing = true;
+        try
+        {
+            // DATA MAPPING: External API Object -> Internal DTO
+            var newGame = new CreateGameDto
+            {
+                Title = gameResult.Title,
+                IgdbId = gameResult.IgdbId,
+                SteamAppId = gameResult.SteamAppId,
+                CoverUrl = gameResult.CoverUrl,
+                Description = gameResult.Description,
+                ReleaseDate = gameResult.ReleaseDate,
+                Status = GameStatus.Suggestion // Default status for new entries
+            };
+
+            var response = await Http.PostAsJsonAsync("api/Game", newGame);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"{gameResult.Title} added to the queue!", Severity.Success);
+            }
+            else
+            {
+                var msg = await response.GetErrorMessageAsync();
+
+                var severity = response.StatusCode == System.Net.HttpStatusCode.Conflict
+                    ? Severity.Warning
+                    : Severity.Error;
+
+                Snackbar.Add(msg, severity);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

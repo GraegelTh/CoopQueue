@@ -1,0 +1,44 @@
+﻿<MudNavMenu>
+    @* General Navigation: Accessible to all authenticated users *@
+    <AuthorizeView>
+        <Authorized>
+            <MudNavLink Href="" 
+                        Match="NavLinkMatch.All" 
+                        Icon="@Icons.Material.Filled.Home">
+                Dashboard
+            </MudNavLink>
+            <MudNavLink Href="search" 
+                        Icon="@Icons.Material.Filled.Search">
+                Search Games
+            </MudNavLink>
+            <MudNavLink Href="profile" 
+                        Icon="@Icons.Material.Filled.Person">
+                My Profile
+            </MudNavLink>
+            <MudNavLink Href="/users" 
+                        Match="NavLinkMatch.Prefix" 
+                        Icon="@Icons.Material.Filled.People">
+                Community
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    @* Admin Section: Restricted to users with the 'Admin' role claim *@
+    <AuthorizeView Roles="Admin">
+        <Authorized>
+            <div class="mt-4 mb-2 ml-4">
+                <MudText Typo="Typo.caption" 
+                         Style="opacity:0.5; font-weight:bold; letter-spacing:1px;">
+                    ADMINISTRATION
+                </MudText>
+            </div>
+
+            <MudNavLink Href="/admin"
+                        Match="NavLinkMatch.Prefix"
+                        Icon="@Icons.Material.Filled.AdminPanelSettings" 
+                        IconColor="Color.Error">
+                Admin Panel
+            </MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+</MudNavMenu>

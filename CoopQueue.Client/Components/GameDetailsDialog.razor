@@ -1,0 +1,103 @@
+﻿@using CoopQueue.Shared.DTOs
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            @* Left Column: Cover Image (Responsive: Full width on mobile, 5/12 on tablet+) *@
+            <MudItem xs="12" sm="5">
+                @if (!string.IsNullOrEmpty(Game.CoverUrl))
+                {
+                    <MudImage Src="@Game.CoverUrl" 
+                              ObjectFit="ObjectFit.Contain" 
+                              Height="300" 
+                              Style="width:100%"
+                              Class="rounded-lg elevation-4"/>
+                }
+                else
+                {
+                    @* Fallback UI for missing images *@
+                    <MudImage Src="images/no_image.png"
+                              ObjectFit="ObjectFit.Contain" 
+                              Height="300" 
+                              Style="width:100%"
+                              Class="rounded-lg elevation-4"/>
+                }
+            </MudItem>
+
+            @* Right Column: Game Metadata *@
+            <MudItem xs="12" sm="7">
+                <MudText Typo="Typo.h6"
+                         GutterBottom="true"
+                         Color="Color.Primary">
+                    @Game.Title
+                    </MudText>
+                
+                @if (Game.ReleaseDate.HasValue)
+                {
+                    <MudText Typo="Typo.caption" Class="mb-4 d-block">
+                        Release: @Game.ReleaseDate.Value.ToShortDateString()
+                    </MudText>
+                }
+
+                @* Scrollable container prevents the dialog from growing too large if description is long *@
+                <MudText Typo="Typo.body2"
+                         Style="max-height: 200px; overflow-y: auto;"
+                         Class="mb-4">
+                    @(string.IsNullOrEmpty(Game.Description) ? "No description available." : Game.Description)
+                </MudText>
+
+                <MudDivider Class="my-3"/>
+
+                <div class="d-flex gap-2 flex-wrap">
+                    @* Primary Action: Link to Steam Store if AppID is known *@
+                    @if (Game.SteamAppId.HasValue)
+                    {
+                        <MudButton Variant="Variant.Outlined" 
+                                   Color="Color.Info" 
+                                   StartIcon="@Icons.Custom.Brands.Steam"
+                                   Href="@($"https://store.steampowered.com/app/{Game.SteamAppId}")"
+                                   Target="_blank">
+                            Steam Store
+                        </MudButton>
+                    }
+                    else
+                    {
+                        @* Fallback Action: Google Search *@
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Secondary"
+                                   StartIcon="@Icons.Material.Filled.Search"
+                                   Href="@GetGoogleSearchUrl(Game.Title)"
+                                   Target="_blank">
+                            Search on Google
+                        </MudButton>
+                    }
+                </div>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Color="Color.Primary">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    
+    [Parameter] public GameResponseDto Game { get; set; } = new();
+
+    void Close() => MudDialog.Cancel();
+
+    /// <summary>
+    /// Generates a safe Google Search URL for the game title.
+    /// Handles special characters (spaces, &, etc.) correctly.
+    /// </summary>
+    private string GetGoogleSearchUrl(string title)
+    {
+        if (string.IsNullOrEmpty(title)) return "https://www.google.com";
+
+        var safeTitle = Uri.EscapeDataString(title);
+
+        return $"https://www.google.com/search?q={safeTitle}";
+    }
+}

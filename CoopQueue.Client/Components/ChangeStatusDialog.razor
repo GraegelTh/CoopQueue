@@ -1,0 +1,83 @@
+﻿@using CoopQueue.Shared.Enums
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6"
+                 Align="Align.Center"
+                 GutterBottom="true">
+            Select New Status
+        </MudText>
+
+        <MudGrid Class="mt-2" Spacing="2">
+            <MudItem xs="6">
+                <MudButton Variant="@GetVariant(GameStatus.Suggestion)"
+                           Color="Color.Info"
+                           StartIcon="@Icons.Material.Filled.Lightbulb"
+                           FullWidth="true"
+                           Class="py-4 rounded-lg"
+                           OnClick="@(() => Submit(GameStatus.Suggestion))"
+                           Disabled="@(CurrentStatus == GameStatus.Suggestion)">
+                    Suggestion
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="6">
+                <MudButton Variant="@GetVariant(GameStatus.Playing)"
+                           Color="Color.Success"
+                           StartIcon="@Icons.Material.Filled.SportsEsports"
+                           FullWidth="true"
+                           Class="py-4 rounded-lg"
+                           OnClick="@(() => Submit(GameStatus.Playing))"
+                           Disabled="@(CurrentStatus == GameStatus.Playing)">
+                    Playing
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="6">
+                <MudButton Variant="@GetVariant(GameStatus.WaitForSale)"
+                           Color="Color.Warning"
+                           StartIcon="@Icons.Material.Filled.Savings"
+                           FullWidth="true"
+                           Class="py-4 rounded-lg"
+                           OnClick="@(() => Submit(GameStatus.WaitForSale))"
+                           Disabled="@(CurrentStatus == GameStatus.WaitForSale)">
+                    Wait for Sale
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="6">
+                <MudButton Variant="@GetVariant(GameStatus.Completed)"
+                           Color="Color.Dark"
+                           StartIcon="@Icons.Material.Filled.EmojiEvents"
+                           FullWidth="true"
+                           Class="py-4 rounded-lg"
+                           OnClick="@(() => Submit(GameStatus.Completed))"
+                           Disabled="@(CurrentStatus == GameStatus.Completed)">
+                    Completed
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel"Color="Color.Default">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    // Access the dialog instance to allow closing or cancelling from within the component
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    // The current status of the game, passed from the parent component
+    [Parameter] public GameStatus CurrentStatus { get; set; }
+
+    // Returns the selected status to the caller
+    void Submit(GameStatus status) => MudDialog.Close(DialogResult.Ok(status));
+
+    void Cancel() => MudDialog.Cancel();
+
+    // UX Helper: Visually highlights the button that matches the current status (Filled vs Outlined)
+    private Variant GetVariant(GameStatus btnStatus) =>
+        CurrentStatus == btnStatus ? Variant.Filled : Variant.Outlined;
+}

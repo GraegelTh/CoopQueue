@@ -1,0 +1,283 @@
+﻿@page "/"
+@using CoopQueue.Shared.DTOs
+@using CoopQueue.Shared.Enums
+@using CoopQueue.Client.Components
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<AuthorizeView>
+    <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+            <div class="d-flex justify-space-between align-end mb-6 mt-4">
+                <div>
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.DashboardCustomize" 
+                                 Color="Color.Primary"
+                                 Size="Size.Large"
+                                 Class="mr-3" />
+
+                        <MudText Typo="Typo.h3" Class="text-gradient">Coop Queue</MudText>
+                    </div>
+                    <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mt-1 ml-1">
+                        Manage your gaming backlog together.
+                    </MudText>
+                </div>
+
+                <MudButton Variant="Variant.Filled"
+                           Class="btn-gradient rounded-lg py-3 px-6 elevation-4"
+                           StartIcon="@Icons.Material.Filled.VideogameAsset"
+                           OnClick="OpenPickDialog">
+                    <MudText Typo="Typo.h6"
+                             Style="font-weight: 700; font-size: 1rem;">
+                             Pick Next Game
+                    </MudText>
+                </MudButton>
+            </div>
+
+            @if (games == null)
+            {
+                <MudProgressCircular Color="Color.Primary"
+                                     Indeterminate="true"
+                                     Class="d-flex mx-auto" />
+            }
+            else
+            {
+                <MudTabs Elevation="2"
+                         Rounded="true"
+                         ApplyEffectsToContainer="true" 
+                         PanelClass="pa-6">
+
+                    <MudTabPanel Text="Voting Queue" Icon="@Icons.Material.Filled.HowToVote">
+                        @if (!games.Any(g => g.Status == GameStatus.Suggestion))
+                        {
+                            <MudAlert Severity="Severity.Info">No suggestions pending. Add some games!</MudAlert>
+                        }
+                        else
+                        {
+                            <MudGrid>
+                                @foreach (var game in games.Where(g => g.Status == GameStatus.Suggestion))
+                                {
+                                    <GameCard @key="game.Id"
+                                              Game="game"
+                                              ShowVoting="true"
+                                              CanModify="@CanEdit(game)"
+                                              OnVote="UpvoteGame"
+                                              OnDelete="DeleteGame"
+                                              OnStatusChange="HandleStatusChange" />
+                                }
+                            </MudGrid>
+                        }
+                    </MudTabPanel>
+
+                    <MudTabPanel Text="Now Playing" Icon="@Icons.Material.Filled.PlayCircle">
+                        <MudGrid>
+                            @foreach (var game in games.Where(g => g.Status == GameStatus.Playing))
+                            {
+                                <GameCard @key="game.Id"
+                                          Game="game"
+                                          ShowVoting="false"
+                                          CanModify="@CanEdit(game)"
+                                          OnDelete="DeleteGame"
+                                          OnStatusChange="HandleStatusChange" />
+                            }
+                        </MudGrid>
+                    </MudTabPanel>
+
+                    <MudTabPanel Text="Library" Icon="@Icons.Material.Filled.LibraryBooks">
+                        <MudGrid>
+                            @foreach (var game in games.Where(g => g.Status == GameStatus.Completed || g.Status == GameStatus.WaitForSale))
+                            {
+                                <GameCard @key="game.Id"
+                                          Game="game"
+                                          ShowVoting="false"
+                                          CanModify="@CanEdit(game)"
+                                          OnDelete="DeleteGame"
+                                          OnStatusChange="HandleStatusChange" />
+                            }
+                        </MudGrid>
+                    </MudTabPanel>
+
+                </MudTabs>
+            }
+        </MudContainer>
+    </Authorized>
+
+    <NotAuthorized>
+        @* Redirects unauthenticated users to the login page immediately *@
+        <CoopQueue.Client.Shared.RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    // Access the authentication state to determine permissions (Admin/Owner)
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private List<GameResponseDto>? games;
+
+    // Local state for permission checks
+    private string currentUsername = string.Empty;
+    private bool isAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            currentUsername = user.Identity.Name ?? string.Empty;
+            isAdmin = user.IsInRole("Admin");
+
+            await LoadGames();
+        }
+    }
+
+    private async Task LoadGames()
+    {
+        try
+        {
+            games = await Http.GetFromJsonAsync<List<GameResponseDto>>("api/Game");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading games: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// RBAC Logic: Determines if the current user is allowed to edit/delete a game.
+    /// Rules: Admins can edit everything; Users can only edit their own suggestions.
+    /// </summary>
+    private bool CanEdit(GameResponseDto game)
+    {
+        return isAdmin || (game.AddedByUser == currentUsername);
+    }
+
+    private async Task HandleStatusChange((GameResponseDto game, GameStatus newStatus) args)
+    {
+        await ChangeGameStatus(args.game, args.newStatus);
+    }
+
+    /// <summary>
+    /// Handles upvoting using Optimistic UI patterns.
+    /// The UI updates immediately for a snappy feel, then reverts (Rollback) if the API call fails.
+    /// </summary>
+    private async Task UpvoteGame(GameResponseDto game)
+    {
+        if (game.IsVotedByCurrentUser) return;
+
+        // 1. Optimistic Update
+        game.IsVotedByCurrentUser = true;
+        game.Votes++;
+        SortLocalList();
+
+        try
+        {
+            var response = await Http.PutAsync($"api/Game/{game.Id}/upvote", null);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                // Rollback
+                game.Votes--;
+                game.IsVotedByCurrentUser = false;
+                SortLocalList();
+
+                var errorMsg = await response.GetErrorMessageAsync();
+                Snackbar.Add(errorMsg, Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Rollback & Network Error
+            game.Votes--;
+            game.IsVotedByCurrentUser = false;
+            SortLocalList();
+            Snackbar.Add($"Network Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteGame(GameResponseDto game)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Delete Game?",
+            $"Do you really want to delete '{game.Title}'?",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            var response = await Http.DeleteAsync($"api/Game/{game.Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                games?.Remove(game);
+                Snackbar.Add("Game deleted.", Severity.Success);
+            }
+            else
+            {
+                var errorMsg = await response.GetErrorMessageAsync();
+                Snackbar.Add(errorMsg, Severity.Error);
+            }
+        }
+    }    
+
+    private async Task ChangeGameStatus(GameResponseDto game, GameStatus newStatus)
+    {
+        if (game.Status == newStatus) return;
+
+        var oldStatus = game.Status;
+        try
+        {
+            game.Status = newStatus; // Optimistic Update
+
+            var updateDto = new CreateGameDto
+            {
+                Title = game.Title,
+                Description = game.Description,
+                CoverUrl = game.CoverUrl,
+                Status = newStatus,
+                IgdbId = game.IgdbId,
+                SteamAppId = game.SteamAppId,
+                ReleaseDate = game.ReleaseDate
+            };
+
+            var response = await Http.PutAsJsonAsync($"api/Game/{game.Id}", updateDto);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"Status changed to: {newStatus}", Severity.Success);
+            }
+            else
+            {
+                game.Status = oldStatus; // Rollback
+                var errorMsg = await response.GetErrorMessageAsync();
+                Snackbar.Add(errorMsg, Severity.Error);
+            }
+        }
+        catch
+        {
+            game.Status = oldStatus;
+        }
+    }
+
+    // Helper to keep the list ordered by votes dynamically
+    private void SortLocalList()
+    {
+        if (games != null) games.Sort((a, b) => b.Votes.CompareTo(a.Votes));
+    }
+
+    private async Task OpenPickDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<PickGameDialog>("Pick Next Game", options);
+        var result = await dialog.Result;
+
+        // If the dialog returns true (game picked), reload the list to reflect status changes
+        if (result is not null && !result.Canceled && result.Data is bool refresh && refresh)
+        {
+            await LoadGames();
+            StateHasChanged();
+        }
+    }
+}

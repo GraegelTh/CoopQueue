@@ -1,0 +1,135 @@
+﻿@using CoopQueue.Shared.DTOs
+@using CoopQueue.Shared.Enums
+@using MudBlazor
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (winner == null)
+        {
+            @* STATE 1: SELECTION MENU *@
+            <MudText Align="Align.Center" Class="mb-4">How should we decide?</MudText>
+            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="mb-4">
+                <b>Democratic:</b> The game with the most votes wins.<br />
+                <b>Weighted Lottery:</b> Random draw! More votes = higher chance.
+            </MudAlert>
+        }
+        else
+        {
+            @* STATE 2: WINNER REVEAL *@
+            <div class="d-flex flex-column align-center pa-4">
+                <MudText Typo="Typo.h5" GutterBottom="true">The Winner is:</MudText>
+
+                @if (!string.IsNullOrEmpty(winner.CoverUrl))
+                {
+                    <MudImage Src="@winner.CoverUrl"
+                              Height="250"
+                              Class="rounded-lg mb-4 elevation-4"
+                              ObjectFit="ObjectFit.Contain" />
+                }
+                else
+                {
+                    <MudImage Src="images/no_image.png"
+                              Height="250"
+                              Class="rounded-lg mb-4 elevation-4"
+                              ObjectFit="ObjectFit.Contain" />
+                }
+
+                <MudText Typo="Typo.h4"
+                         Color="Color.Primary"
+                         Class="mb-2" 
+                         Align="Align.Center">
+                    @winner.Title
+                </MudText>
+
+                <MudText Typo="Typo.subtitle1" Class="mb-4">
+                    🎉 Thanks to <b>@winner.AddedByUser</b>!
+                </MudText>
+
+                <MudChip T="string"
+                         Color="Color.Success" 
+                         Variant="Variant.Filled" 
+                         Icon="@Icons.Material.Filled.PlayArrow">
+                    Status updated to Playing
+                </MudChip>
+            </div>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        @if (winner == null)
+        {
+            <MudButton OnClick="Cancel"
+                       Variant="Variant.Text"
+                       Color="Color.Default">
+                Cancel
+            </MudButton>
+            <MudSpacer />
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Shuffle"
+                       OnClick="@(() => PickGame(VotingMode.Weighted))"
+                       Class="mr-3 rounded-lg border-2">
+                Random
+            </MudButton>
+            <MudButton Variant="Variant.Filled"
+                       StartIcon="@Icons.Material.Filled.Poll"
+                       OnClick="@(() => PickGame(VotingMode.Democratic))"
+                       Class="btn-gradient rounded-lg px-4 elevation-4">
+                Democratic
+            </MudButton>
+        }
+        else
+        {
+            <MudButton OnClick="Submit"
+                       Variant="Variant.Filled"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.RocketLaunch"
+                       Class="btn-gradient rounded-lg py-2 elevation-4">
+                Let's Go! (Close)
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private GameResponseDto? winner;
+
+    /// <summary>
+    /// Invokes the selection algorithm on the server.
+    /// The server picks a winner and automatically updates its status to 'Playing'.
+    /// </summary>
+    /// <param name="mode">The selection strategy ('democratic' or 'random').</param>
+    private async Task PickGame(VotingMode mode)
+    {
+        try
+        {
+            var response = await Http.GetAsync($"api/Game/pick?mode={mode}");
+
+            // 1. Success Case: Parse the winner and update the UI.
+            if (response.IsSuccessStatusCode)
+            {
+                winner = await response.Content.ReadFromJsonAsync<GameResponseDto>();
+                StateHasChanged(); // Force UI refresh to show the winner reveal state
+                return; 
+            }
+
+            // 2. Error Case: This handles both structured JSON errors (from Middleware) and raw server errors.
+            var errorMsg = await response.GetErrorMessageAsync();
+            Snackbar.Add(errorMsg, Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            // Handles client-side network issues (e.g., lost connection)
+            Snackbar.Add($"Network Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // Closes the dialog and returns 'true' to tell the parent page to refresh the list
+    void Submit() => MudDialog.Close(DialogResult.Ok(true));
+
+    void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,149 @@
+﻿@page "/users"
+@using CoopQueue.Shared.DTOs
+@using MudBlazor
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<AuthorizeView>
+    <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+            <div class="mb-8 mt-4">
+                <div class="d-flex align-center mb-1">
+                    <MudIcon Icon="@Icons.Material.Filled.Groups"
+                             Color="Color.Primary"
+                             Class="mr-3"
+                             Style="font-size: 3rem;" />
+
+                    <MudText Typo="Typo.h3" Class="text-gradient">
+                        Community
+                    </MudText>
+                </div>
+
+                <MudText Typo="Typo.subtitle1"
+                         Color="Color.Secondary"
+                         Class="ml-1">
+                    Meet the crew and see who joined the party.
+                </MudText>
+            </div>
+
+            @if (users == null)
+            {
+                <MudProgressCircular Color="Color.Primary"
+                                     Indeterminate="true" 
+                                     Class="d-flex mx-auto" />
+            }
+            else
+            {
+                <MudTable Items="@users"
+                          Hover="true"
+                          Striped="true"
+                          Filter="new Func<UserResponseDto, bool>(FilterFunc)"
+                          Elevation="3">
+
+                    <ToolBarContent>
+                        <MudText Typo="Typo.h6">Members</MudText>
+                        <MudSpacer />
+                        <MudTextField @bind-Value="searchString"
+                                      Placeholder="Search..."
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      IconSize="Size.Medium"
+                                      Class="mt-0" />
+                    </ToolBarContent>
+
+                    <HeaderContent>
+                        <MudTh>
+                            <MudTableSortLabel SortBy="new Func<UserResponseDto, object>(x => x.Username)">
+                                Name
+                            </MudTableSortLabel>
+                        </MudTh>
+                        <MudTh>
+                            <MudTableSortLabel SortBy="new Func<UserResponseDto, object>(x => x.Role)">
+                                Role
+                            </MudTableSortLabel>
+                        </MudTh>
+                        <MudTh>
+                            <MudTableSortLabel SortBy="new Func<UserResponseDto, object>(x => x.DateCreated)">
+                                Joined
+                            </MudTableSortLabel>
+                        </MudTh>
+                    </HeaderContent>
+
+                    <RowTemplate Context="user">
+                        <MudTd DataLabel="Name">
+                            <div class="d-flex align-center">
+                                @* Dynamic Avatar: Generates a colored circle with the first letter of the username *@
+                                <MudAvatar Color="@(user.Role == "Admin" ? Color.Error : Color.Primary)" Size="Size.Small" Class="mr-3">
+                                    @if (!string.IsNullOrEmpty(user.Username))
+                                    {
+                                        @user.Username.Substring(0, 1).ToUpper()
+                                    }
+                                </MudAvatar>
+                                <MudText>@user.Username</MudText>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Role">
+                            @if (user.Role == "Admin")
+                            {
+                                <MudChip T="string"
+                                         Size="Size.Small" 
+                                         Color="Color.Error" 
+                                         Icon="@Icons.Material.Filled.Security">
+                                    Admin
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string"
+                                         Size="Size.Small" 
+                                         Color="Color.Success" 
+                                         Icon="@Icons.Material.Filled.Person">
+                                    User
+                                </MudChip>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Joined">@user.DateCreated.ToString("d")</MudTd>
+                    </RowTemplate>
+
+                    <PagerContent>
+                        <MudTablePager RowsPerPageString="Rows per page:" />
+                    </PagerContent>
+                </MudTable>
+            }
+        </MudContainer>
+    </Authorized>
+    <NotAuthorized>
+        <CoopQueue.Client.Shared.RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<UserResponseDto>? users;
+    private string searchString = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            users = await Http.GetFromJsonAsync<List<UserResponseDto>>("api/User");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load users: {ex.Message}", Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Filters the user list based on the search string.
+    /// Checks both Username and Role (Case-Insensitive).
+    /// </summary>
+    private bool FilterFunc(UserResponseDto user)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+
+        if (user.Username.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (user.Role.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
+}

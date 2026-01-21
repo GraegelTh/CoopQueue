@@ -1,0 +1,106 @@
+﻿@page "/profile"
+@using CoopQueue.Shared.DTOs
+@using CoopQueue.Client.Services
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+
+<AuthorizeView>
+    <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+            <div class="mb-8 mt-4">
+                <div class="d-flex align-center mb-2">
+                    <MudAvatar Color="Color.Primary"
+                               Size="Size.Large" 
+                               Class="mr-3 elevation-4">
+                        @context.User.Identity?.Name?.Substring(0, 1).ToUpper()
+                    </MudAvatar>
+
+                    <MudText Typo="Typo.h3" Class="text-gradient">
+                        My Profile
+                    </MudText>
+                </div>
+
+                <MudText Typo="Typo.subtitle1"
+                         Color="Color.Secondary"
+                         Class="ml-1">
+                    Manage your security settings.
+                </MudText>
+            </div>
+
+            <MudPaper Class="pa-6" Elevation="3">
+                <MudText Typo="Typo.h6" Class="mb-4">Security Settings</MudText>
+                <MudText Typo="Typo.body2"
+                         Class="mb-4"
+                         Color="Color.Secondary">
+                    Here you can update your password. Please choose a strong one!
+                </MudText>
+
+                <EditForm Model="@passwordModel"
+                          OnValidSubmit="HandlePasswordChange" 
+                          Context="editContext">
+                    @*Required to enforce DTO validation rules*@
+                    <DataAnnotationsValidator />
+
+                    <MudTextField @bind-Value="passwordModel.OldPassword"
+                                  Label="Current Password"
+                                  InputType="InputType.Password"
+                                  Variant="Variant.Outlined"
+                                  Class="mb-3"
+                                  For="@(() => passwordModel.OldPassword)" />
+
+                    <MudTextField @bind-Value="passwordModel.NewPassword"
+                                  Label="New Password"
+                                  InputType="InputType.Password"
+                                  Variant="Variant.Outlined"
+                                  Class="mb-3"
+                                  For="@(() => passwordModel.NewPassword)" />
+
+                    <MudTextField @bind-Value="passwordModel.ConfirmNewPassword"
+                                  Label="Confirm New Password"
+                                  InputType="InputType.Password"
+                                  Variant="Variant.Outlined"
+                                  Class="mb-4"
+                                  For="@(() => passwordModel.ConfirmNewPassword)" />
+
+                    <MudButton ButtonType="ButtonType.Submit"
+                               Variant="Variant.Filled"
+                               Class="btn-gradient py-2 rounded-lg"
+                               FullWidth="true"
+                               Disabled="@isProcessing">
+                        @* UX: Feedback for the user during async operation *@
+                        @(isProcessing ? "Saving..." : "Change Password")
+                    </MudButton>
+                </EditForm>
+            </MudPaper>
+
+        </MudContainer>
+    </Authorized>
+    <NotAuthorized>
+        <CoopQueue.Client.Shared.RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private UserChangePasswordDto passwordModel = new();
+
+    // State to handle UI feedback during API calls
+    private bool isProcessing = false;
+
+    private async Task HandlePasswordChange()
+    {
+        isProcessing = true;
+        // Delay slightly if needed or just await the service
+        var error = await AuthService.ChangePassword(passwordModel);
+        isProcessing = false;
+
+        if (error == null)
+        {
+            Snackbar.Add("Password changed successfully!", Severity.Success);
+            passwordModel = new(); // Reset form for security
+        }
+        else
+        {
+            Snackbar.Add(error, Severity.Error);
+        }
+    }
+}

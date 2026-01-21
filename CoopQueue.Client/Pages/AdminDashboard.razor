@@ -1,0 +1,177 @@
+﻿@page "/admin"
+@using CoopQueue.Shared.DTOs
+@using CoopQueue.Shared.Enums
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@* RBAC Protection: The entire view is wrapped to prevent unauthorized rendering *@
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+            <div class="mb-8 mt-4">
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings"
+                             Size="Size.Large" 
+                             Color="Color.Error" 
+                             Class="mr-3" />
+                    <MudText Typo="Typo.h3" Class="text-gradient-danger">Admin Panel</MudText>
+                </div>
+                <MudText Typo="Typo.subtitle1" 
+                         Color="Color.Secondary" 
+                         Class="ml-1 mt-1">
+                    With great power comes great responsibility. 🕷️
+                </MudText>
+            </div>
+
+            @if (users == null)
+            {
+                <MudProgressCircular Color="Color.Error" Indeterminate="true" />
+            }
+            else
+            {
+                <MudTable Items="@users"
+                          Hover="true" 
+                          Elevation="4" 
+                          Striped="true">
+                    <HeaderContent>
+                        <MudTh>User</MudTh>
+                        <MudTh>Role</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="user">
+                        <MudTd DataLabel="User">
+                            <div class="d-flex align-center">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Class="mr-2" />
+                                <MudText>
+                                    @user.Username
+                                    <span style="opacity:0.5; font-size:0.8em"> (ID: @user.Id)</span>
+                                </MudText>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Role">
+                            @* Clickable Chip to toggle Admin status quickly *@
+                            <MudChip T="string"
+                                     Color="@(user.Role == "Admin" ? Color.Error : Color.Success)"
+                                     Size="Size.Small"
+                                     OnClick="@(() => ToggleRole(user))"
+                                     Class="cursor-pointer">
+                                @user.Role (Click to toggle)
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Actions">
+                            <MudTooltip Text="Reset Password">
+                                <MudIconButton Icon="@Icons.Material.Filled.Key"
+                                               Color="Color.Warning"
+                                               OnClick="@(() => ResetPassword(user))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Delete User">
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteForever"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteUser(user))" />
+                            </MudTooltip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudContainer>
+    </Authorized>
+    <NotAuthorized>
+        <MudAlert Severity="Severity.Error">ACCESS DENIED. You are not an Administrator.</MudAlert>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<UserResponseDto>? users;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        try
+        {
+            users = await Http.GetFromJsonAsync<List<UserResponseDto>>("api/User");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Error loading users: " + ex.Message, Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Toggles the user's role between 'User' and 'Admin'.
+    /// Updates the UI immediately upon success.
+    /// </summary>
+    private async Task ToggleRole(UserResponseDto user)
+    {
+        var response = await Http.PutAsync($"api/User/{user.Id}/role", null);
+        if (response.IsSuccessStatusCode)
+        {
+            var newRole = await response.Content.ReadAsStringAsync();
+            user.Role = newRole;
+            Snackbar.Add($"Role of {user.Username} changed to {newRole}", Severity.Success);
+        }
+        else
+        {            
+            var msg = await response.GetErrorMessageAsync();
+            Snackbar.Add(msg, Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Deletes a user after confirmation dialog.
+    /// </summary>
+    private async Task DeleteUser(UserResponseDto user)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Delete User?",
+            $"Do you really want to permanently delete {user.Username}?",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            var response = await Http.DeleteAsync($"api/User/{user.Id}");
+            if (response.IsSuccessStatusCode)
+            {
+                users?.Remove(user);
+                Snackbar.Add($"{user.Username} has been deleted.", Severity.Success);
+            }
+            else
+            {
+                var msg = await response.GetErrorMessageAsync();
+                Snackbar.Add(msg, Severity.Error);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Resets a user's password to a default temporary string.
+    /// </summary>
+    private async Task ResetPassword(UserResponseDto user)
+    {
+        var defaultPass = "Coop123!";
+
+        bool? result = await DialogService.ShowMessageBox(
+            "Password Reset",
+            $"Should the password for {user.Username} be reset to '{defaultPass}'?",
+            yesText: "Yes, Reset!", cancelText: "No");
+
+        if (result == true)
+        {
+            var response = await Http.PostAsJsonAsync($"api/User/{user.Id}/reset-password", defaultPass);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"Password for {user.Username} is now '{defaultPass}'", Severity.Success);
+            }
+            else
+            {
+                var msg = await response.GetErrorMessageAsync();
+                Snackbar.Add(msg, Severity.Error);
+            }
+        }
+    }
+}

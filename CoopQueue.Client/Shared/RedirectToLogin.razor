@@ -1,0 +1,13 @@
+﻿@inject NavigationManager NavManager
+
+@code {
+    /// <summary>
+    /// Lifecycle method that executes immediately when this component is rendered.
+    /// Used inside <NotAuthorized> blocks to automatically redirect unauthenticated users
+    /// to the login page instead of showing a static "Access Denied" message.
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        NavManager.NavigateTo("/login");
+    }
+}

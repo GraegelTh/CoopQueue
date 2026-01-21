@@ -1,0 +1,185 @@
+﻿@using CoopQueue.Shared.DTOs
+@using CoopQueue.Shared.Enums
+@using MudBlazor
+@inject IDialogService DialogService
+
+<MudItem xs="12" sm="6" md="4" lg="3">
+    <MudCard Elevation="3" Class="h-100 d-flex flex-column relative">
+
+        @* Delete Button: Only visible if the user has specific permissions (Owner/Admin) *@
+        @if (CanModify)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                           Color="Color.Error"
+                           Size="Size.Small"
+                           Class="absolute-delete-btn"
+                           OnClick="DeleteClicked" />
+        }
+
+        @* Cover Image with Fallback logic *@
+        @if (!string.IsNullOrEmpty(Game.CoverUrl))
+        {
+            <MudCardMedia Image="@Game.CoverUrl" 
+                          Height="200" 
+                          Style="background-size: contain; background-position: center top;" 
+                          Class="mt-5 rounded-lg" />
+        }
+        else
+        {
+            <MudCardMedia Image="images/no_image.png"
+                          Height="200" 
+                          Style="background-size: contain; background-position: center top;" 
+                          Class="mt-5 rounded-lg" />
+        }
+
+        <MudCardContent Class="flex-grow-1 pt-3">
+            <MudText Typo="Typo.h6" 
+                     Align="Align.Center"
+                     Class="lines-1 mb-1">
+                @Game.Title
+            </MudText>
+
+            @* Status Chip: Clickable only if user has modify rights *@
+            <MudChip T="string"
+                     Color="@GetStatusColor(Game.Status)"
+                     Size="Size.Small"
+                     Class="mb-3"
+                     OnClick="OpenStatusDialog"
+                     Style="@(CanModify ? "cursor: pointer;" : "cursor: default;")">
+                @Game.Status
+                @if (CanModify)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Edit" 
+                             Size="Size.Small" 
+                             Class="ml-2" />
+                }
+            </MudChip>
+
+            @* Description Truncation: Keeps cards unified in height *@
+            <MudText Typo="Typo.body2"
+                     Class="mb-3"
+                     Style="min-height: 40px;">
+                @(Game.Description?.Length > 80 ? Game.Description.Substring(0, 77) + "..." : Game.Description)
+            </MudText>
+
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.PersonOutline"
+                         Size="Size.Small"
+                         Class="mr-1"
+                         Color="Color.Default" />
+
+                <MudText Typo="Typo.caption" Style="opacity: 0.7;">
+                    Suggested by: <b>@Game.AddedByUser</b>
+                </MudText>
+            </div>
+        </MudCardContent>
+
+        <MudCardActions Class="d-flex pa-3 pt-0">
+            @if (ShowVoting)
+            {
+                @* Toggle Button: Visualizes if the user has already voted *@
+                <MudButton Variant="Variant.Filled"
+                           Color="@(Game.IsVotedByCurrentUser ? Color.Secondary : Color.Warning)"
+                           StartIcon="@(Game.IsVotedByCurrentUser ? Icons.Material.Filled.Check : Icons.Material.Filled.LocalFireDepartment)"
+                           OnClick="VoteClicked"
+                           Disabled="@Game.IsVotedByCurrentUser"
+                           Class="flex-grow-1 mr-2">
+                    @(Game.IsVotedByCurrentUser ? $"Voted ({Game.Votes})" : $"Upvote ({Game.Votes})")
+                </MudButton>
+
+                <MudIconButton Icon="@Icons.Material.Filled.Info"
+                               Color="Color.Primary"
+                               OnClick="OpenDetailsDialog" />
+            }
+            else
+            {
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Info"
+                           FullWidth="true"
+                           OnClick="OpenDetailsDialog">
+                    View Details
+                </MudButton>
+            }
+        </MudCardActions>
+    </MudCard>
+</MudItem>
+
+<style>
+    /* Positions the delete button in the top-right corner over the image */
+    .absolute-delete-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        z-index: 10;
+        background-color: rgba(255,255,255,0.8);
+        backdrop-filter: blur(2px);
+    }
+
+    .mud-theme-dark .absolute-delete-btn {
+        background-color: rgba(0,0,0,0.6);
+    }
+
+</style>
+
+
+@code {
+    [Parameter] public GameResponseDto Game { get; set; } = new();
+
+    // Determines if the vote button or just the details button is shown (context dependent)
+    [Parameter] public bool ShowVoting { get; set; }
+
+    // Controls edit/delete permissions based on the parent's logic (User Role/Ownership)
+    [Parameter] public bool CanModify { get; set; } = false;
+
+    // Event Callbacks to delegate logic up to the parent component
+    [Parameter] public EventCallback<GameResponseDto> OnDelete { get; set; }
+    [Parameter] public EventCallback<GameResponseDto> OnVote { get; set; }
+    [Parameter] public EventCallback<(GameResponseDto, GameStatus)> OnStatusChange { get; set; }
+
+    private async Task DeleteClicked() => await OnDelete.InvokeAsync(Game);
+    private async Task VoteClicked() => await OnVote.InvokeAsync(Game);
+
+    private async Task OpenStatusDialog()
+    {
+        
+        if (!CanModify) return;
+
+        var parameters = new DialogParameters<ChangeStatusDialog>
+        {
+            { x => x.CurrentStatus, Game.Status }
+        };
+
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.ExtraSmall };
+
+        var dialog = await DialogService.ShowAsync<ChangeStatusDialog>("Change Status", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled && result.Data is GameStatus newStatus)
+        {
+            if (newStatus != Game.Status)
+            {
+                await OnStatusChange.InvokeAsync((Game, newStatus));
+            }
+        }
+    }
+
+    private async Task OpenDetailsDialog()
+    {
+        var parameters = new DialogParameters<GameDetailsDialog>
+        {
+            { x => x.Game, Game }
+        };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await DialogService.ShowAsync<GameDetailsDialog>(string.Empty, parameters, options);
+    }
+
+    private Color GetStatusColor(GameStatus status) => status switch
+    {
+        GameStatus.Suggestion => Color.Info,
+        GameStatus.Playing => Color.Success,
+        GameStatus.Completed => Color.Dark,
+        GameStatus.WaitForSale => Color.Warning,
+        _ => Color.Default
+    };
+}

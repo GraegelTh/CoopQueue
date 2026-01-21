@@ -1,0 +1,48 @@
+services:
+  # 1. The Database (SQL Server)
+  coopqueue-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: coopqueue-db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD}
+    ports:
+      - "1433:1433"
+    networks:
+      - coop-network
+    volumes:
+      - sqlvolume:/var/opt/mssql
+
+  # 2. The Application (Backend + Frontend)
+  coopqueue-app:
+    image: coopqueue-server
+    container_name: coopqueue-app
+    build:
+      context: .
+      dockerfile: CoopQueue.Api/Dockerfile
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    depends_on:
+      - coopqueue-db
+    environment:
+      # --- ENVIRONMENT SETTINGS ---
+      # Force Development mode so Swagger works in the demo container
+      - ASPNETCORE_ENVIRONMENT=Development 
+      
+      # --- CONFIGURATION OVERRIDES ---
+      - ConnectionStrings__DefaultConnection=Server=coopqueue-db;Database=CoopQueueDb;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - Igdb__ClientId=${IGDB_CLIENT_ID}
+      - Igdb__ClientSecret=${IGDB_CLIENT_SECRET}
+      - AppSettings__Token=${JWT_TOKEN}
+      - AppSettings__RegistrationKey=${INVITE_CODE}
+      - ASPNETCORE_URLS=http://+:8080
+    networks:
+      - coop-network
+
+networks:
+  coop-network:
+    driver: bridge
+
+volumes:
+  sqlvolume:
