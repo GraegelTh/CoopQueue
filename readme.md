@@ -5,9 +5,8 @@
 CoopQueue is a full-stack web application designed to democratize choosing the next co-op game. It allows gaming groups to search for titles via IGDB, suggest additions to a shared queue, and democratically vote on what to play next.
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/c182798c-149b-4b1e-9517-791ebfff6fce" width="100%" alt="CoopQueue Demo Animation">
+  <img src="https://github.com/user-attachments/assets/0f3474ff-a8be-4ff6-acf3-5a5f65b4775c" width="100%" alt="CoopQueue Demo Animation">
 </div>
-<br>
 
 *(Manage your backlog and vote for the next adventure)*
 
@@ -46,7 +45,7 @@ The primary goal was to demonstrate full-stack development skills, focusing on *
 ### Intelligent Game Search
 Real-time integration with the **IGDB API**. The system automatically filters out noise (DLCs, skin packs) to ensure only main games and standalone expansions are suggested.
 
-<img width="2559" height="1304" alt="Screenshot 2026-01-19 204351" src="https://github.com/user-attachments/assets/1d71dd96-d170-4566-acb6-130c2a5e5104" />
+<img width="2559" height="1304" alt="CoopQueue_Search" src="https://github.com/user-attachments/assets/50fb3dba-45d1-4432-afe4-1ffae24884d8" />
 
 
 ### Queue Management & Voting
