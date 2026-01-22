@@ -28,6 +28,7 @@ jobs:
         echo "IGDB_CLIENT_ID=${{ secrets.IGDB_CLIENT_ID }}" >> .env
         echo "IGDB_CLIENT_SECRET=${{ secrets.IGDB_CLIENT_SECRET }}" >> .env
         echo "JWT_TOKEN=${{ secrets.JWT_TOKEN }}" >> .env
+        echo "INVITE_CODE=${{ secrets.INVITE_CODE }}" >> .env
 
     - name: Build with Docker Compose
       run: docker compose build
